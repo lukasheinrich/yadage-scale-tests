@@ -1,0 +1,63 @@
+generate_gauss:
+  process:
+    process_type: interpolated-script-cmd
+    interpreter: bash
+    script: |
+      source /usr/local/bin/thisroot.sh
+      cat << EOF | root -b
+      f = TFile::Open("{outputfile}","RECREATE")
+      TH1F h("hist","hist",100,-5,5)
+      h.FillRandom("gaus",{nevents})
+      f->Write()
+      f->Close()
+      EOF
+  environment:
+    environment_type: docker-encapsulated
+    image: rootproject/root-ubuntu16
+  publisher:
+    publisher_type: 'frompar-pub'
+    outputmap:
+      outputfile: 'outputfile'
+scale_histo:
+  process:
+    process_type: interpolated-script-cmd
+    interpreter: bash
+    script: |
+      source /usr/local/bin/thisroot.sh
+      cat << EOF | root -b
+      fin = TFile::Open("{inputfile}")
+      h = (TH1F*)fin->Get("hist;1")
+      h->SetDirectory(0)
+      fin->Close()
+
+      fout = TFile::Open("{outputfile}","RECREATE")
+      //h->SetDirectory(fout)
+      h->Scale({scalefactor})
+      h->Sumw2()
+      h->Write()
+      fout->Close()
+      EOF
+  environment:
+    environment_type: docker-encapsulated
+    image: rootproject/root-ubuntu16
+  publisher:
+    publisher_type: 'frompar-pub'
+    outputmap:
+      outputfile: 'outputfile'
+merge_root:
+  process:
+    process_type: interpolated-script-cmd
+    interpreter: bash
+    script: |
+      source /usr/local/bin/thisroot.sh
+      cat /parmounts/inputs|sed 's|"||g' |xargs hadd {mergedfile}
+  environment:
+    environment_type: docker-encapsulated
+    image: rootproject/root-ubuntu16
+    par_mounts:
+      - mountpath: '/parmounts/inputs'
+        jqscript: '.inputs[]'
+  publisher:
+    publisher_type: 'frompar-pub'
+    outputmap:
+      mergedfile: 'mergedfile'

@@ -1,0 +1,44 @@
+stages:
+  - name: map
+    dependencies: [init]
+    scheduler:
+      scheduler_type: multistep-stage
+      parameters:
+        nevents: {stages: init, output: nevents, unwrap: true}
+        outputfile: '{workdir}/output_one.root'
+      step: {$ref: steps.yml#/generate_gauss}
+      scatter:
+        method: zip
+        parameters: [nevents]
+  - name: merge
+    dependencies: [map]
+    scheduler:
+      scheduler_type: multistep-stage
+      batchsize: 5
+      parameters:
+        inputs: {stages: 'map', output: outputfile}
+        mergedfile: '{workdir}/merged.root'
+      step: {$ref: steps.yml#/merge_root}
+      scatter:
+        method: zip
+        parameters: [inputs]
+  - name: scale
+    dependencies: [merge]
+    scheduler:
+      scheduler_type: multistep-stage
+      parameters:
+        inputfile: {stages: 'merge', output: mergedfile}
+        outputfile: '{workdir}/scaled.root'
+        scalefactor: 2.0
+      step: {$ref: steps.yml#/scale_histo}
+      scatter:
+        method: zip
+        parameters: [inputfile]
+  - name: reduce
+    dependencies: [scale]
+    scheduler:
+      scheduler_type: singlestep-stage
+      parameters:
+        inputs: {stages: 'scale', output: outputfile}
+        mergedfile: '{workdir}/merged.root'
+      step: {$ref: steps.yml#/merge_root}
